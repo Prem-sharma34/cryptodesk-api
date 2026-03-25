@@ -7,3 +7,5 @@
 /app/modules/watchlist/__pycache__
 /app/modules/utils/__pycache__
 /app/modules/assets/__pycache__
+/alembic/__pycache__
+/alembic/versions/__pycache__
