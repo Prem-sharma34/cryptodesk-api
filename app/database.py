@@ -6,7 +6,6 @@ engine = create_engine(settings.DATABASE_URL)
 
 sessionLocal = sessionmaker(
     bind = engine,
-    autocommit = False,
     autoflush=False
 )
 
