@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import get_db , get_current_user
 from app.modules.auth.schemas import (
     RegisterRequest, LoginRequest,
-    TokenResponse, RefreshRequest, UserResponse
+    TokenResponse, RefreshRequest, UserResponse , LogoutRequest
 )
 from app.modules.auth import service
 
@@ -37,5 +37,11 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout", status_code=204)
-def logout(payload: RefreshRequest, db: Session = Depends(get_db)):
+def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
     service.logout_user(db, payload.refresh_token)
+
+
+
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user=Depends(get_current_user)):
+    return current_user

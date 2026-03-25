@@ -1,12 +1,13 @@
 import hashlib
 import secrets
-from datetime import datetime, timedelta
-
+from datetime import datetime, timedelta , timezone
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.modules.users.models import User, UserRole
 from app.modules.auth.models import RefreshToken
+from app.modules.auth.schemas import RegisterRequest , LoginRequest
 from app.utils.security import hash_password, verify_password, create_access_token
 
 
@@ -16,6 +17,9 @@ def get_user_by_email(db: Session, email: str):
 
 def get_user_by_username(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
+
+def _hash_refresh_token(token:str)->str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def register_user(db: Session, email: str, username: str, password: str) -> User:
@@ -29,6 +33,7 @@ def register_user(db: Session, email: str, username: str, password: str) -> User
     db.commit()
     db.refresh(user)
     return user
+
 
 
 def login_user(db: Session, email: str, password: str):
@@ -97,3 +102,18 @@ def logout_user(db: Session, raw_refresh_token: str) -> bool:
     db_token.is_revoked = True
     db.commit()
     return True
+
+
+def _create_and_store_refresh_token(user_id, db: Session) -> str:
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = _hash_refresh_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    record = RefreshToken(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+    db.add(record)
+    db.commit()
+    return raw_token

@@ -23,11 +23,16 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
 class UserResponse(BaseModel):
     id: UUID
     email: str
     username: str
     role: str
+    is_active: bool
 
     class Config:
         from_attributes = True
