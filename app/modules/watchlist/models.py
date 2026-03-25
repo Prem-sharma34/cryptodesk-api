@@ -26,6 +26,7 @@ class WatchlistItem(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
+    asset = relationship("Asset", lazy="select")
 
     user: Mapped["User"] = relationship(back_populates="watchlist_items")
     asset: Mapped["Asset"] = relationship(back_populates="watchlist_items")
