@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.modules.auth.router import router as auth_router
-
+from app.modules.watchlist.models import WatchlistItem
+from app.modules.users.models import User
+from app.modules.assets.models import Asset
 
 
 app = FastAPI(title="CryptoDesk API", version="1.0.0")
