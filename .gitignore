@@ -5,7 +5,8 @@
 /app/modules/auth/__pycache__
 /app/modules/users/__pycache__
 /app/modules/watchlist/__pycache__
-/app/modules/utils/__pycache__
 /app/modules/assets/__pycache__
 /alembic/__pycache__
 /alembic/versions/__pycache__
+/app/utils/__pycache__
+project_info.md
