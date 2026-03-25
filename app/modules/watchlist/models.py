@@ -8,8 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
-from users.models import User
-from assets.models import Asset
+
 
 class WatchlistItem(Base):
     __tablename__ = "watchlist_items"

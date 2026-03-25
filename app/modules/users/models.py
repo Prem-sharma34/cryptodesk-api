@@ -9,8 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
-from watchlist.models import WatchlistItem
-from auth.models import RefreshToken
+# we don't need to import watchlist or refershToken other models class, orm resolve string reference lazily through the Base.
 
 class UserRole(enum.Enum):
     user = "user"
