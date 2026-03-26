@@ -29,6 +29,6 @@ def update_asset(asset_id: uuid.UUID, data: AssetUpdate, db: Session = Depends(g
     return service.update_asset(str(asset_id), data, db)
 
 
-@router.delete("/{asset_id}", response_model=AssetResponse)
+@router.delete("/{asset_id}", response_model=AssetResponse ,status_code=200)
 def delete_asset(asset_id: uuid.UUID, db: Session = Depends(get_db), _=Depends(get_current_admin)):
     return service.delete_asset(str(asset_id), db)

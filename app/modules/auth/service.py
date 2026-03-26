@@ -1,14 +1,16 @@
 import hashlib
 import secrets
-from datetime import datetime, timedelta , timezone
+from datetime import datetime, timedelta, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.modules.users.models import User, UserRole
 from app.modules.auth.models import RefreshToken
-from app.modules.auth.schemas import RegisterRequest , LoginRequest
+from app.modules.auth.schemas import RegisterRequest, LoginRequest
 from app.utils.security import hash_password, verify_password, create_access_token
+from app.utils.logger import auth_logger  # ← added
 
 
 def get_user_by_email(db: Session, email: str):
@@ -18,7 +20,8 @@ def get_user_by_email(db: Session, email: str):
 def get_user_by_username(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
 
-def _hash_refresh_token(token:str)->str:
+
+def _hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -32,13 +35,23 @@ def register_user(db: Session, email: str, username: str, password: str) -> User
     db.add(user)
     db.commit()
     db.refresh(user)
-    return user
 
+    auth_logger.info(
+        "User registered",
+        extra={"email": user.email, "username": user.username}
+    )
+
+    return user
 
 
 def login_user(db: Session, email: str, password: str):
     user = get_user_by_email(db, email.lower())
+
     if not user or not verify_password(password, user.hashed_password):
+        auth_logger.warning(
+            "Failed login attempt",
+            extra={"email": email}
+        )
         return None, None
 
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
@@ -55,6 +68,11 @@ def login_user(db: Session, email: str, password: str):
     db.add(db_token)
     db.commit()
 
+    auth_logger.info(
+        "User logged in",
+        extra={"user_id": str(user.id), "email": user.email}
+    )
+
     return access_token, raw_refresh_token
 
 
@@ -67,6 +85,7 @@ def refresh_tokens(db: Session, raw_refresh_token: str):
     ).first()
 
     if not db_token:
+        auth_logger.warning("Invalid or expired refresh token used")
         return None, None
 
     # rotate — revoke old, issue new
@@ -87,6 +106,11 @@ def refresh_tokens(db: Session, raw_refresh_token: str):
     db.add(new_db_token)
     db.commit()
 
+    auth_logger.info(
+        "Refresh token rotated",
+        extra={"user_id": str(db_token.user_id)}
+    )
+
     return new_access_token, new_raw_token
 
 
@@ -97,10 +121,17 @@ def logout_user(db: Session, raw_refresh_token: str) -> bool:
     ).first()
 
     if not db_token:
+        auth_logger.warning("Logout attempted with unrecognised token")
         return False
 
     db_token.is_revoked = True
     db.commit()
+
+    auth_logger.info(
+        "User logged out",
+        extra={"user_id": str(db_token.user_id)}
+    )
+
     return True
 
 
@@ -116,4 +147,10 @@ def _create_and_store_refresh_token(user_id, db: Session) -> str:
     )
     db.add(record)
     db.commit()
+
+    auth_logger.info(
+        "Refresh token created",
+        extra={"user_id": str(user_id)}
+    )
+
     return raw_token

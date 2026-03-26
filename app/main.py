@@ -10,6 +10,12 @@ from app.modules.users.models import User
 from app.modules.assets.models import Asset
 
 
+import time
+import logging
+from fastapi import Request
+from app.utils.logger import app_logger
+
+
 app = FastAPI(title="CryptoDesk API", version="1.0.0")
 
 app.add_middleware(
@@ -28,3 +34,25 @@ app.include_router(watchlist_router, prefix="/api/v1/watchlist", tags=["Watchlis
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+
+    response = await call_next(request)
+
+    duration = round((time.time() - start_time) * 1000, 2)  # ms
+
+    app_logger.info(
+        "Request processed",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration,
+        }
+    )
+
+    return response
