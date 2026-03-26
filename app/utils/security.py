@@ -5,7 +5,7 @@ from typing import Optional
 from jose import JWTError, jwt
 from app.config import settings
 
-# ── Password helpers ──────────────────────────────────────────────────────────
+# ── Password helpers 
 
 def hash_password(plain_password: str) -> str:
     pwd_bytes = plain_password.encode('utf-8')
@@ -21,7 +21,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-# ── JWT helpers ───────────────────────────────────────────────────────────────
+# ── JWT helpers 
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()

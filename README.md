@@ -15,11 +15,12 @@ Users can register, authenticate, and maintain a personal watchlist of crypto as
 | Database | PostgreSQL + SQLAlchemy 2.0 ORM |
 | Migrations | Alembic |
 | Auth | JWT (Access + Refresh Token rotation) |
-| Password Hashing | passlib + bcrypt |
+| Password Hashing | bcrypt |
 | Caching | Redis 7 |
 | Rate Limiting | slowapi |
+| Logging | Python logging + python-json-logger |
 | Package Manager | uv |
-| Frontend | Next.js (in `/web`) |
+| Frontend | Next.js |
 
 ---
 
@@ -49,6 +50,12 @@ Users can register, authenticate, and maintain a personal watchlist of crypto as
 - Unique constraint prevents duplicate watchlist entries
 - Enriched responses — returns full asset details, not just IDs
 
+**Logging**
+- Structured JSON logs via `python-json-logger`
+- Per-module named loggers (auth, users, assets, watchlist)
+- HTTP request logging middleware — every request logged with method, path, status code, and duration
+- Key events logged: registrations, logins, failed attempts, token rotation, cache hits/misses, ownership violations
+
 **General**
 - API versioning under `/api/v1/`
 - Input validation via Pydantic on every endpoint
@@ -62,41 +69,42 @@ Users can register, authenticate, and maintain a personal watchlist of crypto as
 ```
 cryptodesk-api/
 ├── app/
-│   ├── main.py                  # FastAPI app, router registration, middleware
-│   ├── config.py                # Environment variables via Pydantic BaseSettings
-│   ├── database.py              # SQLAlchemy engine, session, DeclarativeBase
-│   ├── dependencies.py          # Shared deps: get_db, get_current_user, get_current_admin
+│   ├── main.py                 
+│   ├── config.py                
+│   ├── database.py              
+│   ├── dependencies.py          
 │   │
 │   ├── modules/
 │   │   ├── auth/
-│   │   │   ├── models.py        # RefreshToken model
-│   │   │   ├── schemas.py       # RegisterRequest, LoginRequest, TokenResponse
-│   │   │   ├── service.py       # register, login, refresh, logout logic
-│   │   │   └── router.py        # /api/v1/auth endpoints
+│   │   │   ├── models.py        
+│   │   │   ├── schemas.py      
+│   │   │   ├── service.py       
+│   │   │   └── router.py       
 │   │   │
 │   │   ├── users/
-│   │   │   ├── models.py        # User model
-│   │   │   ├── schemas.py       # UserResponse, UpdateUserRequest
-│   │   │   ├── service.py       # profile, update, delete logic
-│   │   │   └── router.py        # /api/v1/users endpoints
+│   │   │   ├── models.py       
+│   │   │   ├── schemas.py       
+│   │   │   ├── service.py       
+│   │   │   └── router.py        
 │   │   │
 │   │   ├── assets/
-│   │   │   ├── models.py        # Asset model
-│   │   │   ├── schemas.py       # AssetCreate, AssetResponse
-│   │   │   ├── service.py       # CRUD + cache invalidation
-│   │   │   └── router.py        # /api/v1/assets endpoints
+│   │   │   ├── models.py       
+│   │   │   ├── schemas.py       
+│   │   │   ├── service.py       
+│   │   │   └── router.py        
 │   │   │
 │   │   └── watchlist/
-│   │       ├── models.py        # WatchlistItem model
-│   │       ├── schemas.py       # WatchlistItemCreate, WatchlistItemResponse
-│   │       ├── service.py       # add, list, update, remove with ownership checks
-│   │       └── router.py        # /api/v1/watchlist endpoints
+│   │       ├── models.py        
+│   │       ├── schemas.py       
+│   │       ├── service.py       
+│   │       └── router.py        
 │   │
 │   └── utils/
-│       ├── security.py          # JWT encode/decode, bcrypt hash/verify
-│       └── cache.py             # Redis get/set/delete helpers
+│       ├── security.py          
+│       ├── cache.py            
+│       └── logger.py            
 │
-├── alembic/                     # Database migration files
+├── alembic/                     
 ├── web/                         # Next.js frontend
 ├── tests/
 ├── pyproject.toml
@@ -108,14 +116,33 @@ cryptodesk-api/
 
 ## Prerequisites
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) — install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- PostgreSQL running locally
-- Redis running locally
+Make sure the following are installed and running before setup:
+
+| Requirement | Version | Check |
+|---|---|---|
+| Python | 3.12+ | `python --version` |
+| uv | latest | `uv --version` |
+| PostgreSQL | any recent | `psql --version` |
+| Redis | any recent | `redis-cli ping` |
+| Node.js | 18+ | `node --version` |
+
+**Install uv** (if not already installed):
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Start Redis** (if not running):
+```bash
+# macOS
+brew services start redis
+
+# Linux
+sudo systemctl start redis
+```
 
 ---
 
-## Setup
+## Local Setup — Backend
 
 ### 1. Clone the repository
 
@@ -136,7 +163,21 @@ uv sync
 cp .env.example .env
 ```
 
-Open `.env` and fill in your values (see table below).
+Open `.env` and fill in your values:
+
+```env
+DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/cryptodesk_db
+SECRET_KEY=your-random-32-byte-secret-key-here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=7
+REDIS_URL=redis://localhost:6379
+```
+
+Generate a secure `SECRET_KEY`:
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
 
 ### 4. Create the database
 
@@ -156,35 +197,47 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
 
-API is now running at `http://localhost:8000`
-Swagger UI available at `http://localhost:8000/docs`
+API running at `http://localhost:8000`
+Swagger UI at `http://localhost:8000/docs`
+ReDoc at `http://localhost:8000/redoc`
 
 ---
 
-## Environment Variables
-
-Example `.env`:
-
-```env
-DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/cryptodesk_db
-SECRET_KEY=your-random-32-byte-secret-key-here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=15
-REFRESH_TOKEN_EXPIRE_DAYS=7
-REDIS_URL=redis://localhost:6379
-```
-
-Generate a secure `SECRET_KEY`:
+## Local Setup — Frontend
 
 ```bash
-python -c "import secrets; print(secrets.token_hex(32))"
+cd web
+npm install
+npm run dev
 ```
+
+✅ Frontend running at `http://localhost:3000`
+
+---
+
+## Quick Test — Create an Admin User
+
+After setup, promote a registered user to admin via psql to test admin-only endpoints:
+
+```bash
+psql -U postgres -d cryptodesk_db
+```
+
+```sql
+-- verify your user exists
+SELECT id, email, username, role FROM users;
+
+-- promote to admin
+UPDATE users SET role = 'admin' WHERE email = 'your@email.com';
+```
+
+Then use the admin account to test `POST /api/v1/assets/`, `PUT`, and `DELETE` endpoints in Swagger.
 
 ---
 
 ## API Endpoints
 
-Full interactive documentation is available at `/docs` once the server is running.
+Full interactive documentation available at `http://localhost:8000/docs`. Every endpoint is testable directly from the Swagger UI — no external tool needed.
 
 ### Auth — `/api/v1/auth`
 
@@ -227,44 +280,23 @@ Full interactive documentation is available at `/docs` once the server is runnin
 
 ---
 
-## Database Schema
+## Logging
 
+All logs are structured JSON — every line is a valid JSON object, making them searchable and easy to pipe to any log aggregator.
+
+**Sample output:**
+```json
+{"asctime": "2024-01-01T12:00:00", "levelname": "INFO", "name": "app", "message": "CryptoDesk API started", "version": "1.0.0"}
+{"asctime": "2024-01-01T12:00:01", "levelname": "INFO", "name": "app", "message": "Request processed", "method": "POST", "path": "/api/v1/auth/login", "status_code": 200, "duration_ms": 43.2}
+{"asctime": "2024-01-01T12:00:01", "levelname": "INFO", "name": "auth", "message": "User logged in", "user_id": "uuid", "email": "user@example.com"}
+{"asctime": "2024-01-01T12:00:05", "levelname": "INFO", "name": "assets", "message": "Cache hit", "key": "assets:all"}
+{"asctime": "2024-01-01T12:00:10", "levelname": "WARNING", "name": "auth", "message": "Failed login attempt", "email": "user@example.com"}
+{"asctime": "2024-01-01T12:00:15", "levelname": "WARNING", "name": "watchlist", "message": "Unauthorized watchlist access attempt", "item_id": "uuid", "requesting_user": "uuid"}
 ```
-users
-├── id (UUID, PK)
-├── email (unique, indexed)
-├── username (unique, indexed)
-├── hashed_password
-├── role (enum: user | admin)
-├── is_active
-├── created_at
-└── updated_at
 
-refresh_tokens
-├── id (UUID, PK)
-├── user_id (FK → users.id, CASCADE)
-├── token_hash (unique)
-├── expires_at
-├── is_revoked
-└── created_at
-
-assets
-├── id (UUID, PK)
-├── symbol (unique, indexed)
-├── name
-├── description
-├── is_active
-├── created_at
-└── updated_at
-
-watchlist_items
-├── id (UUID, PK)
-├── user_id (FK → users.id, CASCADE)
-├── asset_id (FK → assets.id, CASCADE)
-├── notes
-├── created_at
-└── UNIQUE(user_id, asset_id)
-```
+**Log levels:**
+- `INFO` — successful operations (logins, registrations, cache hits/misses, CRUD actions)
+- `WARNING` — suspicious or failed events (wrong password, ownership violations, token misuse)
 
 ---
 
@@ -272,11 +304,11 @@ watchlist_items
 
 - Passwords hashed with **bcrypt** — plain passwords never stored or logged
 - JWT access tokens expire in **15 minutes** — limits stolen token window
-- Refresh tokens are **rotated** on every use — replay attacks are detectable
+- Refresh tokens **rotated** on every use — replay attacks are detectable
 - Refresh tokens stored as **hashes** in DB — raw tokens never persisted
 - **Rate limiting** on login endpoint — 5 requests/minute per IP
 - Input **validation** on every endpoint via Pydantic
-- SQLAlchemy ORM used throughout — **no raw SQL**, no injection risk
+- SQLAlchemy ORM throughout — **no raw SQL**, no injection risk
 - Ownership checks on all watchlist mutations — users can't touch other users' data
 - **Soft deletes** on assets — preserves referential integrity
 
@@ -284,30 +316,26 @@ watchlist_items
 
 ## Scalability Notes
 
-**Stateless API** — JWTs carry all claims. No server-side sessions. Multiple API instances can run behind a load balancer with zero session-affinity requirements.
+**Stateless API** — JWTs carry all claims. No server-side sessions. Multiple instances can run behind a load balancer with zero session-affinity requirements.
 
-**Redis Caching** — The asset list (read-heavy, rarely written) is cached with a 5-minute TTL. Cache is invalidated on every write. This pattern shields the database as traffic scales.
+**Redis Caching** — The asset list (read-heavy, rarely written) is cached with a 5-minute TTL and invalidated on every write. This shields the database as traffic scales.
 
-**Database Read Replicas** — SQLAlchemy 2.0 supports multiple engines. Write operations route to the primary; read-heavy endpoints (asset list, watchlist) can route to replicas with minimal code changes.
+**Database Read Replicas** — SQLAlchemy 2.0 supports multiple engines. Write operations route to the primary; read-heavy endpoints can route to replicas with minimal code changes.
 
-**Modular Structure** — Each module (auth, users, assets, watchlist) is fully self-contained with its own router, schemas, service, and models. Any module can be extracted into an independent microservice as load demands grow. The auth module, for example, is a natural candidate to become a standalone Auth Service.
+**Modular Structure** — Each module (auth, users, assets, watchlist) is fully self-contained. Any module can be extracted into an independent microservice as load demands grow. The auth module is a natural candidate for a standalone Auth Service.
 
 **Async-ready** — FastAPI supports full async/await. Migrating to async SQLAlchemy 2.0 sessions would allow the event loop to handle significantly more concurrent connections without additional infrastructure.
-
-**Containerised** — Docker Compose bundles the API, PostgreSQL, and Redis into a single deployable unit. Migrating to Kubernetes requires no application changes — only infrastructure configuration.
 
 ---
 
 ## Frontend
 
-The Next.js frontend lives in `/web`. It provides:
+The Next.js frontend lives in `/web`:
 
 - Registration and login pages
 - JWT-protected dashboard
 - Watchlist management (add, view, remove assets)
 - Error and success feedback from API responses
-
-To run the frontend:
 
 ```bash
 cd web
