@@ -1,7 +1,6 @@
 # CryptoDesk API
 
-A secure, scalable REST API platform for managing crypto asset watchlists — built as part of the PrimeTrade.ai Backend Developer Intern assignment.
-
+A secure, scalable REST API platform for managing crypto asset watchlists.
 Users can register, authenticate, and maintain a personal watchlist of crypto assets. Admins manage the master list of available assets.
 
 ---
