@@ -5,24 +5,6 @@ Users can register, authenticate, and maintain a personal watchlist of crypto as
 
 ---
 
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Language | Python 3.12 |
-| Framework | FastAPI 0.135 |
-| Database | PostgreSQL + SQLAlchemy 2.0 ORM |
-| Migrations | Alembic |
-| Auth | JWT (Access + Refresh Token rotation) |
-| Password Hashing | bcrypt |
-| Caching | Redis 7 |
-| Rate Limiting | slowapi |
-| Logging | Python logging + python-json-logger |
-| Package Manager | uv |
-| Frontend | Next.js |
-
----
-
 ## Features
 
 **Authentication**
@@ -48,12 +30,6 @@ Users can register, authenticate, and maintain a personal watchlist of crypto as
 - Ownership verification on every mutating operation
 - Unique constraint prevents duplicate watchlist entries
 - Enriched responses — returns full asset details, not just IDs
-
-**Logging**
-- Structured JSON logs via `python-json-logger`
-- Per-module named loggers (auth, users, assets, watchlist)
-- HTTP request logging middleware — every request logged with method, path, status code, and duration
-- Key events logged: registrations, logins, failed attempts, token rotation, cache hits/misses, ownership violations
 
 **General**
 - API versioning under `/api/v1/`
@@ -234,64 +210,7 @@ Then use the admin account to test `POST /api/v1/assets/`, `PUT`, and `DELETE` e
 
 ---
 
-## API Endpoints
 
-Full interactive documentation available at `http://localhost:8000/docs`. Every endpoint is testable directly from the Swagger UI — no external tool needed.
-
-### Auth — `/api/v1/auth`
-
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| POST | `/register` | Register a new user | None |
-| POST | `/login` | Login, returns access + refresh tokens | None |
-| POST | `/refresh` | Rotate refresh token, get new access token | Refresh token |
-| POST | `/logout` | Revoke refresh token | Bearer token |
-| GET | `/me` | Get current user info | Bearer token |
-
-### Users — `/api/v1/users`
-
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| GET | `/me` | Get own profile | User |
-| PUT | `/me` | Update own profile | User |
-| DELETE | `/me` | Delete own account | User |
-| GET | `/` | List all users | Admin |
-| PATCH | `/{user_id}/deactivate` | Deactivate a user | Admin |
-
-### Assets — `/api/v1/assets`
-
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| GET | `/` | List all active assets (Redis cached) | User |
-| GET | `/{asset_id}` | Get asset details | User |
-| POST | `/` | Create new asset | Admin |
-| PUT | `/{asset_id}` | Update asset | Admin |
-| DELETE | `/{asset_id}` | Soft-delete asset | Admin |
-
-### Watchlist — `/api/v1/watchlist`
-
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| GET | `/` | Get own watchlist with asset details | User |
-| POST | `/` | Add asset to watchlist | User |
-| PATCH | `/{item_id}` | Update notes on watchlist item | User |
-| DELETE | `/{item_id}` | Remove asset from watchlist | User |
-
----
-
-## Logging
-
-All logs are structured JSON — every line is a valid JSON object, making them searchable and easy to pipe to any log aggregator.
-
-**Sample output:**
-```json
-{"asctime": "2024-01-01T12:00:00", "levelname": "INFO", "name": "app", "message": "CryptoDesk API started", "version": "1.0.0"}
-{"asctime": "2024-01-01T12:00:01", "levelname": "INFO", "name": "app", "message": "Request processed", "method": "POST", "path": "/api/v1/auth/login", "status_code": 200, "duration_ms": 43.2}
-{"asctime": "2024-01-01T12:00:01", "levelname": "INFO", "name": "auth", "message": "User logged in", "user_id": "uuid", "email": "user@example.com"}
-{"asctime": "2024-01-01T12:00:05", "levelname": "INFO", "name": "assets", "message": "Cache hit", "key": "assets:all"}
-{"asctime": "2024-01-01T12:00:10", "levelname": "WARNING", "name": "auth", "message": "Failed login attempt", "email": "user@example.com"}
-{"asctime": "2024-01-01T12:00:15", "levelname": "WARNING", "name": "watchlist", "message": "Unauthorized watchlist access attempt", "item_id": "uuid", "requesting_user": "uuid"}
-```
 
 **Log levels:**
 - `INFO` — successful operations (logins, registrations, cache hits/misses, CRUD actions)
@@ -310,21 +229,6 @@ All logs are structured JSON — every line is a valid JSON object, making them 
 - SQLAlchemy ORM throughout — **no raw SQL**, no injection risk
 - Ownership checks on all watchlist mutations — users can't touch other users' data
 - **Soft deletes** on assets — preserves referential integrity
-
----
-
-## Scalability Notes
-
-**Stateless API** — JWTs carry all claims. No server-side sessions. Multiple instances can run behind a load balancer with zero session-affinity requirements.
-
-**Redis Caching** — The asset list (read-heavy, rarely written) is cached with a 5-minute TTL and invalidated on every write. This shields the database as traffic scales.
-
-**Database Read Replicas** — SQLAlchemy 2.0 supports multiple engines. Write operations route to the primary; read-heavy endpoints can route to replicas with minimal code changes.
-
-**Modular Structure** — Each module (auth, users, assets, watchlist) is fully self-contained. Any module can be extracted into an independent microservice as load demands grow. The auth module is a natural candidate for a standalone Auth Service.
-
-**Async-ready** — FastAPI supports full async/await. Migrating to async SQLAlchemy 2.0 sessions would allow the event loop to handle significantly more concurrent connections without additional infrastructure.
-
 ---
 
 ## Frontend
